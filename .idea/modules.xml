@@ -2,8 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/CryptoProject.iml" filepath="$PROJECT_DIR$/CryptoProject.iml" />
-      <module fileurl="file://$PROJECT_DIR$/E2E/E2E.iml" filepath="$PROJECT_DIR$/E2E/E2E.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/Crypto.iml" filepath="$PROJECT_DIR$/.idea/Crypto.iml" />
     </modules>
   </component>
 </project>

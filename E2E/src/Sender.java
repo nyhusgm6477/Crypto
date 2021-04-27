@@ -7,6 +7,7 @@ import java.io.*;
 import java.net.InetAddress;
 import java.net.Socket;
 import java.security.NoSuchAlgorithmException;
+import java.util.Scanner;
 
 
 public class Sender {
@@ -16,20 +17,67 @@ public class Sender {
     public boolean chatFinished = false; //TODO: have gui signal when chat is finished
     public ObjectInputStream dis = null;
     public ObjectOutputStream dos = null;
+    Message msg;
+    Message send;
 
     public static void main(String[] args) {
 
     }
     public Sender() throws IOException {
         super();
-        setupSocket();
+        Sender snd = new Sender();
+        snd.setupSocket();
     }
 
     public void setupSocket() throws IOException {
         InetAddress ip = InetAddress.getLocalHost();
         sendingSock = new Socket(ip, port);
+
         dis = new ObjectInputStream(sendingSock.getInputStream());
         dos = new ObjectOutputStream(sendingSock.getOutputStream());
+
+        new receiverSend().start();
+        new receiverListener().start();
+    }
+
+    class receiverListener extends Thread{
+        public void run(){
+            while(true){
+                try{
+                    msg = (Message) dis.readObject();
+                    //call decrypt here
+                    System.out.println("From receiver: " + msg);
+                }catch (Exception e){
+                    e.printStackTrace();
+                    System.out.println("Error in receiver Listener");
+                }
+            }
+        }
+    }
+
+    class receiverSend extends Thread{
+        public void run(){
+            while(true){
+                try{
+                    /*
+                    *
+                    *
+                    *
+                    * to insert global i with encryption stuff
+                    *
+                    *
+                    * */
+                    System.out.println("Message to send to server: ");
+                    Scanner sc = new Scanner(System.in);
+                    String msg = sc.nextLine();
+                    send = new Message(msg.getBytes());
+                    dos.writeObject(send);
+                }catch (Exception e){
+                    e.printStackTrace();
+                    System.out.println("No message\n");
+                }
+            }
+        }
     }
 
     //method to run chat
