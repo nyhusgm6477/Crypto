@@ -3,6 +3,7 @@ import javax.crypto.spec.IvParameterSpec;
 import java.io.*;
 import java.net.InetAddress;
 import java.net.Socket;
+import java.nio.charset.StandardCharsets;
 import java.security.NoSuchAlgorithmException;
 import java.util.Scanner;
 
@@ -17,13 +18,19 @@ public class Sender {
     Message msg;
     Message send;
 
-    public static void main(String[] args) {
-
+    public static void main(String[] args) throws IOException {
+        Sender s = null;
+        try {
+            s = new Sender();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        s.setupSocket();
     }
     public Sender() throws IOException {
-        super();
-        Sender snd = new Sender();
-        snd.setupSocket();
+        //super();
+       // Sender snd = new Sender();
+       // snd.setupSocket();
     }
 
     public void setupSocket() throws IOException {
@@ -43,7 +50,8 @@ public class Sender {
                 try{
                     msg = (Message) dis.readObject();
                     //call decrypt here
-                    System.out.println("From receiver: " + msg);
+                    String actualMsg = new String(msg.retrieveData(), StandardCharsets.UTF_8);
+                    System.out.println("From receiver: " + actualMsg);
                 }catch (Exception e){
                     e.printStackTrace();
                     System.out.println("Error in receiver Listener");
@@ -82,7 +90,7 @@ public class Sender {
         while(!chatFinished) {
             //constantly listen for messages
             byte[] message  = (byte[]) dis.readObject();
-            String decrypted = decryptMessage(message, key);
+            //String decrypted = decryptMessage(message, key);
         }
     }
 
@@ -90,8 +98,8 @@ public class Sender {
     public void sendMessage(String message) throws IOException, IllegalBlockSizeException, BadPaddingException, NoSuchAlgorithmException, NoSuchPaddingException {
         //attempt to send the message
         if(!chatFinished) {
-            byte[] encrypted = encryptMessage(message, key);
-            dos.write(encrypted);
+            //byte[] encrypted = encryptMessage(message, key);
+            //dos.write(encrypted);
         }
     }
 

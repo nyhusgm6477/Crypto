@@ -6,9 +6,9 @@ import javax.crypto.spec.IvParameterSpec;
 import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.nio.charset.StandardCharsets;
 import java.security.NoSuchAlgorithmException;
 import java.util.Scanner;
-
 
 public class Receiver {
 
@@ -65,7 +65,8 @@ public class Receiver {
                 } catch (ClassNotFoundException e) {
                     e.printStackTrace();
                 }
-                System.out.println("Message from client: " + msg);
+                String actualMsg = new String(msg.retrieveData(), StandardCharsets.UTF_8);
+                System.out.println("Message from client: " + actualMsg);
             /*
                 if(i == 0){
                     if(msg.retrieveData() != null){
