@@ -1,7 +1,4 @@
-import javax.crypto.BadPaddingException;
-import javax.crypto.Cipher;
-import javax.crypto.IllegalBlockSizeException;
-import javax.crypto.NoSuchPaddingException;
+import javax.crypto.*;
 import javax.crypto.spec.IvParameterSpec;
 import java.io.*;
 import java.net.InetAddress;
@@ -84,9 +81,8 @@ public class Sender {
     public void recieve() throws IOException, ClassNotFoundException, IllegalBlockSizeException, BadPaddingException, NoSuchAlgorithmException, NoSuchPaddingException {
         while(!chatFinished) {
             //constantly listen for messages
-            //TODO:probably parse this somehow
             byte[] message  = (byte[]) dis.readObject();
-            String decrypted = decryptMessage(message);
+            String decrypted = decryptMessage(message, key);
         }
     }
 
@@ -94,7 +90,7 @@ public class Sender {
     public void sendMessage(String message) throws IOException, IllegalBlockSizeException, BadPaddingException, NoSuchAlgorithmException, NoSuchPaddingException {
         //attempt to send the message
         if(!chatFinished) {
-            byte[] encrypted = encryptMessage(message);
+            byte[] encrypted = encryptMessage(message, key);
             dos.write(encrypted);
         }
     }
@@ -105,7 +101,7 @@ public class Sender {
         sendingSock.close();
     }
 
-    public byte[] encryptMessage(String message) throws NoSuchPaddingException, NoSuchAlgorithmException, BadPaddingException, IllegalBlockSizeException {
+    public byte[] encryptMessage(String message, SecretKey key) throws NoSuchPaddingException, NoSuchAlgorithmException, BadPaddingException, IllegalBlockSizeException {
         Cipher cipherText = Cipher.getInstance("AES/CBC/PKCS5PADDING"); //for AES encryption
         byte[] encryptedMessage = null;
         IvParameterSpec iv = new IvParameterSpec(message.getBytes()); //check this
@@ -116,13 +112,20 @@ public class Sender {
         return encryptedMessage;
     }
 
-    public String decryptMessage(byte[] message) throws NoSuchPaddingException, NoSuchAlgorithmException, BadPaddingException, IllegalBlockSizeException {
+    public String decryptMessage(byte[] message, SecretKey key) throws NoSuchPaddingException, NoSuchAlgorithmException, BadPaddingException, IllegalBlockSizeException {
         Cipher decipherText = Cipher.getInstance("AES/CBC/PKCS5PADDING");
         String decryptedMessage = null;
         IvParameterSpec iv = new IvParameterSpec(message); //check this
-        //TODO:pass in key here
         //decipherText.init(Cipher.DECRYPT_MODE, key, iv);
         //decryptedMessage = decipherText.doFinal(message);
         return decryptedMessage;
+    }
+
+    public SecretKey generateKey() throws NoSuchAlgorithmException {
+        SecretKey AES = null;
+        KeyGenerator generator = KeyGenerator.getInstance("AES");
+        generator.init(128);
+        AES = generator.generateKey();
+        return AES;
     }
 }
