@@ -10,6 +10,7 @@ import java.security.*;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.X509EncodedKeySpec;
 import java.sql.SQLOutput;
+import java.util.Base64;
 import java.util.Scanner;
 
 
@@ -21,6 +22,7 @@ public class Sender {
     public ObjectInputStream dis = null;
     public ObjectOutputStream dos = null;
     public boolean keySent = false;
+    public boolean eventsLog = false;
     private Message msg;
     private Message send;
     private byte[] senderPubKeyEnc = null;
@@ -192,6 +194,9 @@ public class Sender {
         //TODO:pass in key here
         //cipherText.init(Cipher.ENCRYPT_MODE, key, iv);
         encryptedMessage = cipherText.doFinal(message.getBytes());
+        if(eventsLog) {
+            String encryptedText = "Encrypted text: " + Base64.getEncoder().encodeToString(encryptedMessage);
+        }
 
         return encryptedMessage;
     }
@@ -206,11 +211,20 @@ public class Sender {
     }
 
     public SecretKeySpec generateKey() throws NoSuchAlgorithmException {
-        //SecretKey AES = null;
-        //KeyGenerator generator = KeyGenerator.getInstance("AES");
-        //generator.init(128);
-        //AES = generator.generateKey();
-        //return AES;
+
         return senderKey = new SecretKeySpec(senderSharedSecret, 0, 16, "RSA");
     }
+
+    public SecretKey generateAESKey() throws NoSuchAlgorithmException {
+        SecretKey AES;
+        KeyGenerator generator = KeyGenerator.getInstance("AES");
+        generator.init(128);
+        AES = generator.generateKey();
+        if(eventsLog) {
+            String AESText = "Generated key: " + Base64.getEncoder().encodeToString(AES.getEncoded()); //getting string version of key
+        }
+        return AES;
+    }
+
+
 }

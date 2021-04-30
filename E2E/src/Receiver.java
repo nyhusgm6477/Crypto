@@ -10,6 +10,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.*;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.X509EncodedKeySpec;
+import java.util.Base64;
 import java.util.Scanner;
 
 public class Receiver {
@@ -23,6 +24,7 @@ public class Receiver {
     private byte[] senderPubKeyEnc = null;
     private byte[] receiverPubKeyEnc = null;
     byte[] receiverSharedSecret;
+    public boolean eventsLog = false;
 
     int i;
 
@@ -184,7 +186,9 @@ public class Receiver {
         //TODO:pass in key here
         //cipherText.init(Cipher.ENCRYPT_MODE, key, iv);
         encryptedMessage = cipherText.doFinal(message.getBytes());
-
+        if(eventsLog) {
+            String encryptedText = "Encrypted text: " + Base64.getEncoder().encodeToString(encryptedMessage);
+        }
         return encryptedMessage;
     }
 
@@ -199,4 +203,14 @@ public class Receiver {
         return decryptedMessage;
     }
 
+    public SecretKey generateAESKey() throws NoSuchAlgorithmException {
+        SecretKey AES;
+        KeyGenerator generator = KeyGenerator.getInstance("AES");
+        generator.init(128);
+        AES = generator.generateKey();
+        if(eventsLog) {
+            String AESText = "Generated key: " + Base64.getEncoder().encodeToString(AES.getEncoded()); //getting string version of key
+        }
+        return AES;
+    }
 }
