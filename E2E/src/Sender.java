@@ -4,6 +4,8 @@ import java.io.*;
 import java.net.InetAddress;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
+import java.security.InvalidAlgorithmParameterException;
+import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 import java.util.Scanner;
 
@@ -13,6 +15,7 @@ public class Sender {
     public Socket receivingSock;
     public static final int port = 9045; //idk what the port should be
     public boolean chatFinished = false; //TODO: have gui signal when chat is finished
+    public boolean isVerbose = false; //TODO: set this to true if we want to show encryption/keys
     public ObjectInputStream dis = null;
     public ObjectOutputStream dos = null;
     Message msg;
@@ -109,23 +112,22 @@ public class Sender {
         sendingSock.close();
     }
 
-    public byte[] encryptMessage(String message, SecretKey key) throws NoSuchPaddingException, NoSuchAlgorithmException, BadPaddingException, IllegalBlockSizeException {
+    public byte[] encryptMessage(String message, SecretKey key) throws NoSuchPaddingException, NoSuchAlgorithmException, BadPaddingException, IllegalBlockSizeException, InvalidAlgorithmParameterException, InvalidKeyException {
         Cipher cipherText = Cipher.getInstance("AES/CBC/PKCS5PADDING"); //for AES encryption
         byte[] encryptedMessage = null;
         IvParameterSpec iv = new IvParameterSpec(message.getBytes()); //check this
-        //TODO:pass in key here
-        //cipherText.init(Cipher.ENCRYPT_MODE, key, iv);
+        cipherText.init(Cipher.ENCRYPT_MODE, key, iv);
         encryptedMessage = cipherText.doFinal(message.getBytes());
 
         return encryptedMessage;
     }
 
-    public String decryptMessage(byte[] message, SecretKey key) throws NoSuchPaddingException, NoSuchAlgorithmException, BadPaddingException, IllegalBlockSizeException {
+    public String decryptMessage(byte[] message, SecretKey key) throws NoSuchPaddingException, NoSuchAlgorithmException, BadPaddingException, IllegalBlockSizeException, InvalidAlgorithmParameterException, InvalidKeyException {
         Cipher decipherText = Cipher.getInstance("AES/CBC/PKCS5PADDING");
         String decryptedMessage = null;
         IvParameterSpec iv = new IvParameterSpec(message); //check this
-        //decipherText.init(Cipher.DECRYPT_MODE, key, iv);
-        //decryptedMessage = decipherText.doFinal(message);
+        decipherText.init(Cipher.DECRYPT_MODE, key, iv);
+        decryptedMessage = decipherText.doFinal(message).toString(); //this kinda sus
         return decryptedMessage;
     }
 
