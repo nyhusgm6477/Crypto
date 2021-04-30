@@ -1,8 +1,8 @@
 import javax.crypto.*;
 import javax.crypto.interfaces.DHPublicKey;
 import javax.crypto.spec.DHParameterSpec;
-import javax.crypto.spec.DHPublicKeySpec;
 import javax.crypto.spec.IvParameterSpec;
+import javax.crypto.spec.SecretKeySpec;
 import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
@@ -25,6 +25,7 @@ public class Receiver {
     private byte[] receiverPubKeyEnc = null;
     byte[] receiverSharedSecret;
     public boolean eventsLog = false;
+    SecretKeySpec receiverKey;
 
     int i;
 
@@ -160,7 +161,10 @@ public class Receiver {
         }
 
         System.out.println("\n\nReceiver's secret: " + toHexString(receiverSharedSecret));
+        generateAESKey();
+        String AESText = "Generated key: " + Base64.getEncoder().encodeToString(receiverKey.getEncoded());
     }
+
     private static String toHexString(byte[] block) {
         StringBuffer buffer = new StringBuffer();
         int len = block.length;
@@ -177,7 +181,6 @@ public class Receiver {
         }
         return buffer.toString();
     }
-
 
     public byte[] encryptMessage(String message) throws NoSuchPaddingException, NoSuchAlgorithmException, BadPaddingException, IllegalBlockSizeException {
         Cipher cipherText = Cipher.getInstance("AES/CBC/PKCS5PADDING"); //for AES encryption
@@ -203,7 +206,8 @@ public class Receiver {
         return decryptedMessage;
     }
 
-    public SecretKey generateAESKey() throws NoSuchAlgorithmException {
+    public void generateAESKey() throws NoSuchAlgorithmException {
+        /*
         SecretKey AES;
         KeyGenerator generator = KeyGenerator.getInstance("AES");
         generator.init(128);
@@ -211,6 +215,7 @@ public class Receiver {
         if(eventsLog) {
             String AESText = "Generated key: " + Base64.getEncoder().encodeToString(AES.getEncoded()); //getting string version of key
         }
-        return AES;
+         */
+        receiverKey = new SecretKeySpec(receiverSharedSecret, 0, 16, "AES");
     }
 }

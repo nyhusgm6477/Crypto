@@ -143,7 +143,8 @@ public class Sender {
         }
 
         System.out.println("\n\nSender's secret: " + toHexString(senderSharedSecret));
-        generateKey();
+        generateAESKey();
+        String AESText = "Generated key: " + Base64.getEncoder().encodeToString(senderKey.getEncoded());
     }
 
     private static String toHexString(byte[] block) {
@@ -210,12 +211,8 @@ public class Sender {
         return decryptedMessage;
     }
 
-    public SecretKeySpec generateKey() throws NoSuchAlgorithmException {
-
-        return senderKey = new SecretKeySpec(senderSharedSecret, 0, 16, "RSA");
-    }
-
-    public SecretKey generateAESKey() throws NoSuchAlgorithmException {
+    public void generateAESKey() throws NoSuchAlgorithmException {
+        /*
         SecretKey AES;
         KeyGenerator generator = KeyGenerator.getInstance("AES");
         generator.init(128);
@@ -224,6 +221,9 @@ public class Sender {
             String AESText = "Generated key: " + Base64.getEncoder().encodeToString(AES.getEncoded()); //getting string version of key
         }
         return AES;
+
+         */
+        senderKey = new SecretKeySpec(senderSharedSecret, 0, 16, "RSA");
     }
 
 
