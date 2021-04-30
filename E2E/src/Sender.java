@@ -7,6 +7,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
+import java.util.Base64;
 import java.util.Scanner;
 
 
@@ -118,7 +119,9 @@ public class Sender {
         IvParameterSpec iv = new IvParameterSpec(message.getBytes()); //check this
         cipherText.init(Cipher.ENCRYPT_MODE, key, iv);
         encryptedMessage = cipherText.doFinal(message.getBytes());
-
+        if(isVerbose) {
+            String encryptedText = "Encrypted text: " + Base64.getEncoder().encodeToString(encryptedMessage);
+        }
         return encryptedMessage;
     }
 
@@ -136,6 +139,9 @@ public class Sender {
         KeyGenerator generator = KeyGenerator.getInstance("AES");
         generator.init(128);
         AES = generator.generateKey();
+        if(isVerbose) {
+            String AESText = "Generated key: " + Base64.getEncoder().encodeToString(AES.getEncoded()); //getting string version of key
+        }
         return AES;
     }
 }

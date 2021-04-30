@@ -1,13 +1,11 @@
-import javax.crypto.BadPaddingException;
-import javax.crypto.Cipher;
-import javax.crypto.IllegalBlockSizeException;
-import javax.crypto.NoSuchPaddingException;
+import javax.crypto.*;
 import javax.crypto.spec.IvParameterSpec;
 import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.security.NoSuchAlgorithmException;
+import java.util.Base64;
 import java.util.Scanner;
 
 public class Receiver {
@@ -16,6 +14,8 @@ public class Receiver {
     private static Socket clientSocket = null;
     private static String ip = "127.0.0.1";
     private static int port = 9045;
+    public boolean chatFinished = false; //TODO: have gui signal when chat is finished
+    public boolean isVerbose = false; //TODO: set this to true if we want to show encryption/keys
     private Message msg;
     Message send;
 
@@ -115,7 +115,9 @@ public class Receiver {
         //TODO:pass in key here
         //cipherText.init(Cipher.ENCRYPT_MODE, key, iv);
         encryptedMessage = cipherText.doFinal(message.getBytes());
-
+        if(isVerbose) {
+            String encryptedText = "Encrypted text: " + Base64.getEncoder().encodeToString(encryptedMessage);
+        }
         return encryptedMessage;
     }
 
@@ -130,4 +132,14 @@ public class Receiver {
         return decryptedMessage;
     }
 
+    public SecretKey generateKey() throws NoSuchAlgorithmException {
+        SecretKey AES = null;
+        KeyGenerator generator = KeyGenerator.getInstance("AES");
+        generator.init(128);
+        AES = generator.generateKey();
+        if(isVerbose) {
+            String AESText = "Generated key: " + Base64.getEncoder().encodeToString(AES.getEncoded()); //getting string version of key
+        }
+        return AES;
+    }
 }
