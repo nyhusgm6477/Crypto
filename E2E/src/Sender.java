@@ -1,10 +1,15 @@
 import javax.crypto.*;
 import javax.crypto.spec.IvParameterSpec;
+import javax.crypto.spec.SecretKeySpec;
+import javax.swing.plaf.synth.SynthOptionPaneUI;
 import java.io.*;
 import java.net.InetAddress;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
-import java.security.NoSuchAlgorithmException;
+import java.security.*;
+import java.security.spec.InvalidKeySpecException;
+import java.security.spec.X509EncodedKeySpec;
+import java.sql.SQLOutput;
 import java.util.Scanner;
 
 
@@ -15,10 +20,15 @@ public class Sender {
     public boolean chatFinished = false; //TODO: have gui signal when chat is finished
     public ObjectInputStream dis = null;
     public ObjectOutputStream dos = null;
-    Message msg;
-    Message send;
+    public boolean keySent = false;
+    private Message msg;
+    private Message send;
+    private byte[] senderPubKeyEnc = null;
+    private byte[] receiverPubKeyEnc = null;
+    private byte[] senderSharedSecret = null;
+    private SecretKeySpec senderKey;
 
-    public static void main(String[] args) throws IOException {
+    public static void main(String[] args) throws IOException, NoSuchAlgorithmException, InvalidKeyException, ClassNotFoundException, InvalidKeySpecException {
         Sender s = null;
         try {
             s = new Sender();
@@ -29,16 +39,19 @@ public class Sender {
     }
     public Sender() throws IOException {
         //super();
-       // Sender snd = new Sender();
-       // snd.setupSocket();
+        // Sender snd = new Sender();
+        // snd.setupSocket();
     }
 
-    public void setupSocket() throws IOException {
+    public void setupSocket() throws IOException, InvalidKeyException, NoSuchAlgorithmException, ClassNotFoundException, InvalidKeySpecException {
         InetAddress ip = InetAddress.getLocalHost();
         sendingSock = new Socket(ip, port);
 
         dis = new ObjectInputStream(sendingSock.getInputStream());
         dos = new ObjectOutputStream(sendingSock.getOutputStream());
+
+        DHKeyGen();
+
 
         new receiverSend().start();
         new receiverListener().start();
@@ -51,7 +64,7 @@ public class Sender {
                     msg = (Message) dis.readObject();
                     //call decrypt here
                     String actualMsg = new String(msg.retrieveData(), StandardCharsets.UTF_8);
-                    System.out.println("From receiver: " + actualMsg);
+                    System.out.println("Receiver: " + actualMsg);
                 }catch (Exception e){
                     e.printStackTrace();
                     System.out.println("Error in receiver Listener");
@@ -65,13 +78,13 @@ public class Sender {
             while(true){
                 try{
                     /*
-                    *
-                    *
-                    *
-                    * to insert global i with encryption stuff
-                    *
-                    *
-                    * */
+                     *
+                     *
+                     *
+                     * to insert global i with encryption stuff
+                     *
+                     *
+                     * */
                     System.out.println("Message to send to server: ");
                     Scanner sc = new Scanner(System.in);
                     String msg = sc.nextLine();
@@ -83,6 +96,69 @@ public class Sender {
                 }
             }
         }
+    }
+
+
+    public void DHKeyGen() throws NoSuchAlgorithmException, InvalidKeyException, IOException, ClassNotFoundException, InvalidKeySpecException {
+        System.out.println("sender generating Diffie-Hellman keypair...\n");
+        KeyPairGenerator senderKpairGen = KeyPairGenerator.getInstance("DH");
+        senderKpairGen.initialize(2048);
+        KeyPair senderKpair = senderKpairGen.generateKeyPair();
+
+        KeyAgreement senderKeyAgree = KeyAgreement.getInstance("DH");
+        senderKeyAgree.init(senderKpair.getPrivate());
+
+        senderPubKeyEnc = senderKpair.getPublic().getEncoded();
+        System.out.println("public key to send: ");
+        for(int i = 0; i < senderPubKeyEnc.length; i++){
+            System.out.print(senderPubKeyEnc[i]);
+        }
+
+        System.out.println("\n\nAttempting to send public key...");
+        dos.writeObject(senderPubKeyEnc);
+        System.out.println("Public key successfully sent\n");
+
+        System.out.println("Waiting for key from receiver...");
+        receiverPubKeyEnc = (byte[]) dis.readObject();
+        System.out.println("Receiver public key received");
+        for(int i = 0; i < receiverPubKeyEnc.length; i++){
+            System.out.print(receiverPubKeyEnc[i]);
+        }
+
+        KeyFactory senderKeyFac = KeyFactory.getInstance("DH");
+        X509EncodedKeySpec X509KeySpec = new X509EncodedKeySpec(receiverPubKeyEnc);
+        PublicKey receiverPubKey = senderKeyFac.generatePublic(X509KeySpec);
+        senderKeyAgree.doPhase(receiverPubKey, true);
+
+        try{
+            senderSharedSecret = senderKeyAgree.generateSecret();
+            int senderLen = senderSharedSecret.length;
+            dos.writeObject(senderLen);
+
+            System.out.println("\n\nsender's length: " + senderLen);
+        }catch(Exception e){
+            System.out.println(e.getMessage());
+        }
+
+        System.out.println("\n\nSender's secret: " + toHexString(senderSharedSecret));
+        generateKey();
+    }
+
+    private static String toHexString(byte[] block) {
+        StringBuffer buffer = new StringBuffer();
+        int len = block.length;
+        for (int i = 0; i < len; i++) {
+            char[] hex = { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F' };
+            int high = ((block[i] & 0xf0) >> 4);
+            int low = (block[i] & 0x0f);
+            buffer.append(hex[high]);
+            buffer.append(hex[low]);
+
+            if (i < len-1) {
+                buffer.append(":");
+            }
+        }
+        return buffer.toString();
     }
 
     //method to run chat
@@ -129,11 +205,12 @@ public class Sender {
         return decryptedMessage;
     }
 
-    public SecretKey generateKey() throws NoSuchAlgorithmException {
-        SecretKey AES = null;
-        KeyGenerator generator = KeyGenerator.getInstance("AES");
-        generator.init(128);
-        AES = generator.generateKey();
-        return AES;
+    public SecretKeySpec generateKey() throws NoSuchAlgorithmException {
+        //SecretKey AES = null;
+        //KeyGenerator generator = KeyGenerator.getInstance("AES");
+        //generator.init(128);
+        //AES = generator.generateKey();
+        //return AES;
+        return senderKey = new SecretKeySpec(senderSharedSecret, 0, 16, "RSA");
     }
 }

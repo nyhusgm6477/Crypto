@@ -1,13 +1,15 @@
-import javax.crypto.BadPaddingException;
-import javax.crypto.Cipher;
-import javax.crypto.IllegalBlockSizeException;
-import javax.crypto.NoSuchPaddingException;
+import javax.crypto.*;
+import javax.crypto.interfaces.DHPublicKey;
+import javax.crypto.spec.DHParameterSpec;
+import javax.crypto.spec.DHPublicKeySpec;
 import javax.crypto.spec.IvParameterSpec;
 import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
-import java.security.NoSuchAlgorithmException;
+import java.security.*;
+import java.security.spec.InvalidKeySpecException;
+import java.security.spec.X509EncodedKeySpec;
 import java.util.Scanner;
 
 public class Receiver {
@@ -18,6 +20,9 @@ public class Receiver {
     private static int port = 9045;
     private Message msg;
     Message send;
+    private byte[] senderPubKeyEnc = null;
+    private byte[] receiverPubKeyEnc = null;
+    byte[] receiverSharedSecret;
 
     int i;
 
@@ -39,17 +44,20 @@ public class Receiver {
             senderThread thread = new senderThread(clientSocket);
             thread.run();
             server.close();
-        } catch (IOException u){
+        } catch (IOException | ClassNotFoundException | InvalidKeySpecException | InvalidAlgorithmParameterException | NoSuchAlgorithmException | InvalidKeyException u){
             System.out.println(u);
         }
     }
 
     class senderThread extends Thread{
         Socket socket;
-        senderThread(Socket socket) throws IOException{
+        senderThread(Socket socket) throws IOException, ClassNotFoundException, InvalidKeySpecException, InvalidAlgorithmParameterException, NoSuchAlgorithmException, InvalidKeyException {
             this.socket = socket;
             os = new ObjectOutputStream(socket.getOutputStream());
             is = new ObjectInputStream(socket.getInputStream());
+
+            DHKeyGen();
+
             new clientListener().start();
             new clientSend().start();
         }
@@ -60,13 +68,11 @@ public class Receiver {
             while(true){
                 try{
                     msg = (Message)is.readObject();
-                } catch (IOException e) {
-                    e.printStackTrace();
-                } catch (ClassNotFoundException e) {
+                } catch (IOException | ClassNotFoundException e) {
                     e.printStackTrace();
                 }
                 String actualMsg = new String(msg.retrieveData(), StandardCharsets.UTF_8);
-                System.out.println("Message from client: " + actualMsg);
+                System.out.println("Sender: " + actualMsg);
             /*
                 if(i == 0){
                     if(msg.retrieveData() != null){
@@ -86,27 +92,90 @@ public class Receiver {
     }
 
     class clientSend extends Thread{
-            public void run(){
-                while(true){
-                    try{
-                        System.out.println("To send: ");
-                        Scanner sc = new Scanner(System.in);
-                        String msg = sc.nextLine();
-                        send = new Message(msg.getBytes());
+        public void run(){
+            while(true){
+                try{
+                    System.out.println("To send: ");
+                    Scanner sc = new Scanner(System.in);
+                    String msg = sc.nextLine();
+                    send = new Message(msg.getBytes());
 
-                        synchronized (send){
-                            os.writeObject(send);
-                            os.reset();
-                        }
-
-                    }catch(Exception e){
-                        e.printStackTrace();
-                        System.out.println("Message not sent");
+                    synchronized (send){
+                        os.writeObject(send);
+                        os.reset();
                     }
+
+                }catch(Exception e){
+                    e.printStackTrace();
+                    System.out.println("Message not sent");
                 }
             }
+        }
 
     }
+
+    public void DHKeyGen() throws NoSuchAlgorithmException, InvalidKeySpecException, InvalidAlgorithmParameterException, InvalidKeyException, IOException, ClassNotFoundException {
+        System.out.println("Waiting for sender's public key...");
+        senderPubKeyEnc = (byte[]) is.readObject();
+        System.out.println("Public key from sender received: ");
+
+        for(int i = 0; i < senderPubKeyEnc.length; i++){
+            System.out.print(senderPubKeyEnc[i]);
+        }
+
+        /*instantiating DH public key from encoded sender key*/
+        KeyFactory receiverKeyFac = KeyFactory.getInstance("DH");
+        X509EncodedKeySpec X509KeySpec = new X509EncodedKeySpec(senderPubKeyEnc);
+
+        PublicKey senderPubKey = receiverKeyFac.generatePublic(X509KeySpec);
+        DHParameterSpec dhParamFromSenderPubKey = ((DHPublicKey)senderPubKey).getParams();
+
+        /*creating receiver's own public key*/
+        KeyPairGenerator receiverKpairGen = KeyPairGenerator.getInstance("DH");
+        receiverKpairGen.initialize(dhParamFromSenderPubKey);
+        KeyPair receiverKpair = receiverKpairGen.generateKeyPair();
+
+        KeyAgreement receiverKeyAgree = KeyAgreement.getInstance("DH");
+        receiverKeyAgree.init(receiverKpair.getPrivate());
+
+        receiverPubKeyEnc = receiverKpair.getPublic().getEncoded();
+        System.out.println("\n\nAttempting to send receiver's public key to sender...");
+        for(int i = 0; i < receiverPubKeyEnc.length; i++){
+            System.out.print(receiverPubKeyEnc[i]);
+        }
+        os.writeObject(receiverPubKeyEnc);
+        System.out.println("\nReceiver's public key sent");
+
+        receiverKeyAgree.doPhase(senderPubKey, true);
+
+        int senderLen = (int)is.readObject();
+        System.out.println("\n\nsenderlen: " + senderLen);
+        try {
+            receiverSharedSecret = new byte[senderLen];
+            int receiverLen = receiverKeyAgree.generateSecret(receiverSharedSecret, 0);
+        } catch(ShortBufferException e){
+            System.out.println(e.getMessage());
+        }
+
+        System.out.println("\n\nReceiver's secret: " + toHexString(receiverSharedSecret));
+    }
+    private static String toHexString(byte[] block) {
+        StringBuffer buffer = new StringBuffer();
+        int len = block.length;
+        for (int i = 0; i < len; i++) {
+            char[] hex = { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F' };
+            int high = ((block[i] & 0xf0) >> 4);
+            int low = (block[i] & 0x0f);
+            buffer.append(hex[high]);
+            buffer.append(hex[low]);
+
+            if (i < len-1) {
+                buffer.append(":");
+            }
+        }
+        return buffer.toString();
+    }
+
 
     public byte[] encryptMessage(String message) throws NoSuchPaddingException, NoSuchAlgorithmException, BadPaddingException, IllegalBlockSizeException {
         Cipher cipherText = Cipher.getInstance("AES/CBC/PKCS5PADDING"); //for AES encryption
