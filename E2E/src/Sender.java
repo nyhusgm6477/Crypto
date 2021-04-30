@@ -23,12 +23,13 @@ public class Sender {
     public ObjectOutputStream dos = null;
     public boolean keySent = false;
     public boolean eventsLog = false;
-    private Message msg;
+    private byte[] msg;
     private Message send;
     private byte[] senderPubKeyEnc = null;
     private byte[] receiverPubKeyEnc = null;
     private byte[] senderSharedSecret = null;
     private SecretKeySpec senderKey;
+    AlgorithmParameters aesParameters;
 
     public static void main(String[] args) throws IOException, NoSuchAlgorithmException, InvalidKeyException, ClassNotFoundException, InvalidKeySpecException {
         Sender s = null;
@@ -63,13 +64,13 @@ public class Sender {
         public void run(){
             while(true){
                 try{
-                    msg = (Message) dis.readObject();
-                    //call decrypt here
-                    String actualMsg = new String(msg.retrieveData(), StandardCharsets.UTF_8);
+                    recvIV();
+                    msg = (byte[]) dis.readObject();
+                    byte[] output = decryptMessage(msg);
+                    String actualMsg = new String(output, StandardCharsets.UTF_8);
                     System.out.println("Receiver: " + actualMsg);
-                }catch (Exception e){
+                } catch (IOException | ClassNotFoundException | NoSuchAlgorithmException | InvalidKeyException | InvalidAlgorithmParameterException | NoSuchPaddingException | BadPaddingException | IllegalBlockSizeException e) {
                     e.printStackTrace();
-                    System.out.println("Error in receiver Listener");
                 }
             }
         }
@@ -90,8 +91,7 @@ public class Sender {
                     System.out.println("Message to send to server: ");
                     Scanner sc = new Scanner(System.in);
                     String msg = sc.nextLine();
-                    send = new Message(msg.getBytes());
-                    dos.writeObject(send);
+                    sendMessage(msg);
                 }catch (Exception e){
                     e.printStackTrace();
                     System.out.println("No message\n");
@@ -174,11 +174,11 @@ public class Sender {
     }
 
     //call only when attempting to send message, like when you hit enter or send or whatever
-    public void sendMessage(String message) throws IOException, IllegalBlockSizeException, BadPaddingException, NoSuchAlgorithmException, NoSuchPaddingException {
+    public void sendMessage(String message) throws IOException, IllegalBlockSizeException, BadPaddingException, NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException {
         //attempt to send the message
         if(!chatFinished) {
-            //byte[] encrypted = encryptMessage(message, key);
-            //dos.write(encrypted);
+            byte[] encrypted = encryptMessage(message);
+            dos.writeObject(encrypted);
         }
     }
 
@@ -188,9 +188,9 @@ public class Sender {
         sendingSock.close();
     }
 
-    public byte[] encryptMessage(String message, SecretKey key) throws NoSuchPaddingException, NoSuchAlgorithmException, BadPaddingException, IllegalBlockSizeException {
-        Cipher cipherText = Cipher.getInstance("AES/CBC/PKCS5PADDING"); //for AES encryption
-        byte[] encryptedMessage = null;
+    public byte[] encryptMessage(String message) throws NoSuchPaddingException, NoSuchAlgorithmException, BadPaddingException, IllegalBlockSizeException, InvalidKeyException, IOException {
+
+       /* byte[] encryptedMessage = null;
         IvParameterSpec iv = new IvParameterSpec(message.getBytes()); //check this
         //TODO:pass in key here
         //cipherText.init(Cipher.ENCRYPT_MODE, key, iv);
@@ -198,10 +198,29 @@ public class Sender {
         if(eventsLog) {
             String encryptedText = "Encrypted text: " + Base64.getEncoder().encodeToString(encryptedMessage);
         }
-
-        return encryptedMessage;
+        */
+        //return encryptedMessage;
+        Cipher cipher = Cipher.getInstance("AES/CBC/PKCS5PADDING"); //for AES encryption
+        cipher.init(Cipher.ENCRYPT_MODE, senderKey);
+        byte[] cipherText = cipher.doFinal(message.getBytes());
+        byte[] encodedParameters = cipher.getParameters().getEncoded();
+        dos.writeObject(encodedParameters);
+        return cipherText;
     }
 
+    public byte[] decryptMessage(byte[] message) throws NoSuchPaddingException, NoSuchAlgorithmException, BadPaddingException, IllegalBlockSizeException, IOException, ClassNotFoundException, InvalidAlgorithmParameterException, InvalidKeyException {
+
+        Cipher decipherText = Cipher.getInstance("AES/CBC/PKCS5PADDING");
+        decipherText.init(Cipher.DECRYPT_MODE, senderKey, aesParameters);
+        byte[] decryptedMessage = decipherText.doFinal(message);
+        //IvParameterSpec iv = new IvParameterSpec(message); //check this
+        //TODO:pass in key here
+        //decipherText.init(Cipher.DECRYPT_MODE, key, iv);
+        //decryptedMessage = decipherText.doFinal(message);
+        return decryptedMessage;
+    }
+
+    /*
     public String decryptMessage(byte[] message, SecretKey key) throws NoSuchPaddingException, NoSuchAlgorithmException, BadPaddingException, IllegalBlockSizeException {
         Cipher decipherText = Cipher.getInstance("AES/CBC/PKCS5PADDING");
         String decryptedMessage = null;
@@ -210,6 +229,7 @@ public class Sender {
         //decryptedMessage = decipherText.doFinal(message);
         return decryptedMessage;
     }
+     */
 
     public void generateAESKey() throws NoSuchAlgorithmException {
         /*
@@ -223,7 +243,13 @@ public class Sender {
         return AES;
 
          */
-        senderKey = new SecretKeySpec(senderSharedSecret, 0, 16, "RSA");
+        senderKey = new SecretKeySpec(senderSharedSecret, 0, 16, "AES");
+    }
+
+    public void recvIV() throws IOException, ClassNotFoundException, NoSuchAlgorithmException {
+        byte[] encodedParameters = (byte[]) dis.readObject();
+        aesParameters = AlgorithmParameters.getInstance("AES");
+        aesParameters.init(encodedParameters);
     }
 
 

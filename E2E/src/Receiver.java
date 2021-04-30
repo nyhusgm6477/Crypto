@@ -19,13 +19,15 @@ public class Receiver {
     private static Socket clientSocket = null;
     private static String ip = "127.0.0.1";
     private static int port = 9045;
-    private Message msg;
+    public boolean chatFinished = false;
+    private byte[] msg;
     Message send;
     private byte[] senderPubKeyEnc = null;
     private byte[] receiverPubKeyEnc = null;
     byte[] receiverSharedSecret;
     public boolean eventsLog = false;
     SecretKeySpec receiverKey;
+    AlgorithmParameters aesParameters;
 
     int i;
 
@@ -70,26 +72,14 @@ public class Receiver {
         public void run(){
             while(true){
                 try{
-                    msg = (Message)is.readObject();
-                } catch (IOException | ClassNotFoundException e) {
+                    recvIV();
+                    msg = (byte[]) is.readObject();
+                    byte[] output = decryptMessage(msg);
+                    String actualMsg = new String(output, StandardCharsets.UTF_8);
+                    System.out.println("Sender: " + actualMsg);
+                } catch (IOException | ClassNotFoundException | NoSuchAlgorithmException | InvalidKeyException | InvalidAlgorithmParameterException | NoSuchPaddingException | BadPaddingException | IllegalBlockSizeException e) {
                     e.printStackTrace();
                 }
-                String actualMsg = new String(msg.retrieveData(), StandardCharsets.UTF_8);
-                System.out.println("Sender: " + actualMsg);
-            /*
-                if(i == 0){
-                    if(msg.retrieveData() != null){
-                        try {
-                            decryptMessage(msg.retrieveData());
-                        } catch (NoSuchPaddingException | NoSuchAlgorithmException | BadPaddingException | IllegalBlockSizeException e) {
-                            e.printStackTrace();
-                        }
-                    }
-                    else{
-                        System.out.println("SOME PROBLEM\n");
-                    }
-                }
-            */
             }
         }
     }
@@ -101,12 +91,7 @@ public class Receiver {
                     System.out.println("To send: ");
                     Scanner sc = new Scanner(System.in);
                     String msg = sc.nextLine();
-                    send = new Message(msg.getBytes());
-
-                    synchronized (send){
-                        os.writeObject(send);
-                        os.reset();
-                    }
+                    sendMessage(msg);
 
                 }catch(Exception e){
                     e.printStackTrace();
@@ -182,6 +167,7 @@ public class Receiver {
         return buffer.toString();
     }
 
+    /*
     public byte[] encryptMessage(String message) throws NoSuchPaddingException, NoSuchAlgorithmException, BadPaddingException, IllegalBlockSizeException {
         Cipher cipherText = Cipher.getInstance("AES/CBC/PKCS5PADDING"); //for AES encryption
         byte[] encryptedMessage = null;
@@ -194,16 +180,61 @@ public class Receiver {
         }
         return encryptedMessage;
     }
+     */
 
+    //call only when attempting to send message, like when you hit enter or send or whatever
+    public void sendMessage(String message) throws IOException, IllegalBlockSizeException, BadPaddingException, NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException {
+        //attempt to send the message
+        if(!chatFinished) {
+            byte[] encrypted = encryptMessage(message);
+            os.writeObject(encrypted);
+        }
+    }
 
-    public String decryptMessage(byte[] message) throws NoSuchPaddingException, NoSuchAlgorithmException, BadPaddingException, IllegalBlockSizeException {
+    public byte[] encryptMessage(String message) throws NoSuchPaddingException, NoSuchAlgorithmException, BadPaddingException, IllegalBlockSizeException, InvalidKeyException, IOException {
+
+       /* byte[] encryptedMessage = null;
+        IvParameterSpec iv = new IvParameterSpec(message.getBytes()); //check this
+        //TODO:pass in key here
+        //cipherText.init(Cipher.ENCRYPT_MODE, key, iv);
+        encryptedMessage = cipherText.doFinal(message.getBytes());
+        if(eventsLog) {
+            String encryptedText = "Encrypted text: " + Base64.getEncoder().encodeToString(encryptedMessage);
+        }
+        */
+        //return encryptedMessage;
+        Cipher cipher = Cipher.getInstance("AES/CBC/PKCS5PADDING"); //for AES encryption
+        cipher.init(Cipher.ENCRYPT_MODE, receiverKey);
+        byte[] cipherText = cipher.doFinal(message.getBytes());
+        byte[] encodedParameters = cipher.getParameters().getEncoded();
+        os.writeObject(encodedParameters);
+        return cipherText;
+    }
+
+    public void recieve() throws IOException, ClassNotFoundException, IllegalBlockSizeException, BadPaddingException, NoSuchAlgorithmException, NoSuchPaddingException {
+        //while(!chatFinished) {
+            //constantly listen for messages
+            byte[] message  = (byte[]) is.readObject();
+            //String decrypted = decryptMessage(message, key);
+        //}
+    }
+
+    public byte[] decryptMessage(byte[] message) throws NoSuchPaddingException, NoSuchAlgorithmException, BadPaddingException, IllegalBlockSizeException, IOException, ClassNotFoundException, InvalidAlgorithmParameterException, InvalidKeyException {
+
         Cipher decipherText = Cipher.getInstance("AES/CBC/PKCS5PADDING");
-        String decryptedMessage = null;
-        IvParameterSpec iv = new IvParameterSpec(message); //check this
+        decipherText.init(Cipher.DECRYPT_MODE, receiverKey, aesParameters);
+        byte[] decryptedMessage = decipherText.doFinal(message);
+        //IvParameterSpec iv = new IvParameterSpec(message); //check this
         //TODO:pass in key here
         //decipherText.init(Cipher.DECRYPT_MODE, key, iv);
         //decryptedMessage = decipherText.doFinal(message);
         return decryptedMessage;
+    }
+
+    public void recvIV() throws IOException, ClassNotFoundException, NoSuchAlgorithmException {
+        byte[] encodedParameters = (byte[]) is.readObject();
+        aesParameters = AlgorithmParameters.getInstance("AES");
+        aesParameters.init(encodedParameters);
     }
 
     public void generateAESKey() throws NoSuchAlgorithmException {
