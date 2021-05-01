@@ -1,7 +1,13 @@
 import javax.crypto.*;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
+import javax.swing.*;
 import javax.swing.plaf.synth.SynthOptionPaneUI;
+import java.awt.*;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.awt.event.KeyEvent;
+import java.awt.event.KeyListener;
 import java.io.*;
 import java.net.InetAddress;
 import java.net.Socket;
@@ -14,7 +20,7 @@ import java.util.Base64;
 import java.util.Scanner;
 
 
-public class Sender {
+public class Sender extends JFrame implements ActionListener, KeyListener {
     public Socket sendingSock;
     public Socket receivingSock;
     public static final int port = 9045; //idk what the port should be
@@ -30,21 +36,17 @@ public class Sender {
     private byte[] senderSharedSecret = null;
     private SecretKeySpec senderKey;
     AlgorithmParameters aesParameters;
+    private JButton sendbutton;
+    private JTextArea chat, event;
+    private JTextField typefield;
+    private JButton EventLogButton;
 
     public static void main(String[] args) throws IOException, NoSuchAlgorithmException, InvalidKeyException, ClassNotFoundException, InvalidKeySpecException {
         Sender s = null;
-        try {
-            s = new Sender();
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+        s = new Sender();
         s.setupSocket();
     }
-    public Sender() throws IOException {
-        //super();
-        // Sender snd = new Sender();
-        // snd.setupSocket();
-    }
+
 
     public void setupSocket() throws IOException, InvalidKeyException, NoSuchAlgorithmException, ClassNotFoundException, InvalidKeySpecException {
         InetAddress ip = InetAddress.getLocalHost();
@@ -69,6 +71,7 @@ public class Sender {
                     byte[] output = decryptMessage(msg);
                     String actualMsg = new String(output, StandardCharsets.UTF_8);
                     System.out.println("Receiver: " + actualMsg);
+                    chat.append("\nReceiver: " + actualMsg);
                 } catch (IOException | ClassNotFoundException | NoSuchAlgorithmException | InvalidKeyException | InvalidAlgorithmParameterException | NoSuchPaddingException | BadPaddingException | IllegalBlockSizeException e) {
                     e.printStackTrace();
                 }
@@ -88,13 +91,15 @@ public class Sender {
                      *
                      *
                      * */
-                    System.out.println("Message to send to server: ");
+                    System.out.println("Me(Sender): ");
                     Scanner sc = new Scanner(System.in);
                     String msg = sc.nextLine();
                     sendMessage(msg);
+                    chat.append("\nMe(Sender): " + msg);
                 }catch (Exception e){
                     e.printStackTrace();
                     System.out.println("No message\n");
+                    event.append("\nNo message\n");
                 }
             }
         }
@@ -103,6 +108,7 @@ public class Sender {
 
     public void DHKeyGen() throws NoSuchAlgorithmException, InvalidKeyException, IOException, ClassNotFoundException, InvalidKeySpecException {
         System.out.println("sender generating Diffie-Hellman keypair...\n");
+        event.append("\nsender generating Diffie-Hellman keypair...\n");
         KeyPairGenerator senderKpairGen = KeyPairGenerator.getInstance("DH");
         senderKpairGen.initialize(2048);
         KeyPair senderKpair = senderKpairGen.generateKeyPair();
@@ -112,19 +118,26 @@ public class Sender {
 
         senderPubKeyEnc = senderKpair.getPublic().getEncoded();
         System.out.println("public key to send: ");
+        event.append("\npublic key to send: ");
         for(int i = 0; i < senderPubKeyEnc.length; i++){
             System.out.print(senderPubKeyEnc[i]);
+            event.append(""+senderPubKeyEnc[i]);
         }
 
-        System.out.println("\n\nAttempting to send public key...");
+        System.out.println("\n\n\nAttempting to send public key...");
+        event.append("\n\nAttempting to send public key...");
         dos.writeObject(senderPubKeyEnc);
         System.out.println("Public key successfully sent\n");
+        event.append("\nPublic key successfully sent\n");
 
         System.out.println("Waiting for key from receiver...");
+        event.append("\nWaiting for key from receiver...");
         receiverPubKeyEnc = (byte[]) dis.readObject();
         System.out.println("Receiver public key received");
+        event.append("\nReceiver public key received");
         for(int i = 0; i < receiverPubKeyEnc.length; i++){
             System.out.print(receiverPubKeyEnc[i]);
+            event.append(""+receiverPubKeyEnc[i]);
         }
 
         KeyFactory senderKeyFac = KeyFactory.getInstance("DH");
@@ -138,11 +151,13 @@ public class Sender {
             dos.writeObject(senderLen);
 
             System.out.println("\n\nsender's length: " + senderLen);
+            event.append("\n\n\nsender's length: " + senderLen);
         }catch(Exception e){
             System.out.println(e.getMessage());
         }
 
         System.out.println("\n\nSender's secret: " + toHexString(senderSharedSecret));
+        event.append("\n\n\nSender's secret: " + toHexString(senderSharedSecret));
         generateAESKey();
         String AESText = "Generated key: " + Base64.getEncoder().encodeToString(senderKey.getEncoded());
     }
@@ -250,6 +265,134 @@ public class Sender {
         byte[] encodedParameters = (byte[]) dis.readObject();
         aesParameters = AlgorithmParameters.getInstance("AES");
         aesParameters.init(encodedParameters);
+    }
+
+
+
+    Sender()
+    {
+        JPanel center = new JPanel(new GridLayout(2,1));
+        chat = new JTextArea(80,80);
+        chat.setEditable(false);
+        appendRoom("Chat Log:\n");
+        center.add(new JScrollPane(chat));
+        event = new JTextArea(80,80);
+        event.setEditable(false);
+        appendEvent("Events log.\n");
+        center.add(new JScrollPane(event));
+        add(center);
+
+        JPanel south = new JPanel( new BorderLayout());
+        typefield = new JTextField("Type here",33);
+
+        south.add(typefield,BorderLayout.NORTH);
+
+        JPanel ButtonPanel = new JPanel();
+        EventLogButton = new JButton("Event Log");
+        sendbutton = new JButton("Send");
+
+        ButtonPanel.add(EventLogButton,BorderLayout.SOUTH);
+        ButtonPanel.add(sendbutton,BorderLayout.SOUTH);
+        south.add(ButtonPanel, BorderLayout.SOUTH);
+
+        add(south, BorderLayout.SOUTH);
+
+        setTitle("Sender");
+        setSize(400, 600);
+        setVisible(true);
+
+
+        sendbutton.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                if(!typefield.getText().equals(""))
+                {
+                    try{
+
+                        String msg = typefield.getText();
+                        sendMessage(msg);
+                        typefield.setText("");
+                        chat.append("\nMe(Sender): " + msg);
+                        System.out.println("Me(Sender): " + msg);
+
+                    }catch(Exception a){
+                        a.printStackTrace();
+                        System.out.println("Message not sent");
+                        event.append("Message not sent");
+                    }
+                }
+            }
+
+        });
+
+        EventLogButton.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+
+                if(event.isVisible())
+                {
+                    event.setVisible(false);
+                }
+                else
+                {
+                    event.setVisible(true);
+                }
+            }
+        });
+
+        typefield.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                if(!typefield.getText().equals(""))
+                {
+                    try{
+
+                        String msg = typefield.getText();
+                        sendMessage(msg);
+                        typefield.setText("");
+                        chat.append("\nMe(Sender): " + msg);
+                        System.out.println("Me(Sender): " + msg);
+                    }catch(Exception a){
+                        a.printStackTrace();
+                        System.out.println("Message not sent");
+                        event.append("Message not sent");
+                    }
+                }
+
+            }
+        });
+    }
+
+    void appendRoom(String str)
+    {
+        chat.append(str);
+        chat.setCaretPosition(chat.getText().length() - 1);
+    }
+    void appendEvent(String str)
+    {
+        event.append(str);
+        event.setCaretPosition(chat.getText().length() - 1);
+    }
+
+
+    @Override
+    public void actionPerformed(ActionEvent e) {
+        Component Receiver = new JFrame();
+
+    }
+
+    @Override
+    public void keyTyped(KeyEvent e) {
+
+    }
+
+    @Override
+    public void keyPressed(KeyEvent e) {
+    }
+
+    @Override
+    public void keyReleased(KeyEvent arg0) {
+
     }
 
 
