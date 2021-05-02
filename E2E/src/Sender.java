@@ -55,6 +55,8 @@ public class Sender extends JFrame implements ActionListener, KeyListener {
         dis = new ObjectInputStream(sendingSock.getInputStream());
         dos = new ObjectOutputStream(sendingSock.getOutputStream());
 
+        event.append("\nConnected to Receiver\n");
+
         DHKeyGen();
 
 
@@ -68,6 +70,8 @@ public class Sender extends JFrame implements ActionListener, KeyListener {
                 try{
                     recvIV();
                     msg = (byte[]) dis.readObject();
+                    event.append("\n\nEncrypted message from Receiver(Hex): \n" + toHexString(msg));
+                    event.append("\n\nEncrypted message from Receiver(Base64): \n" + Base64.getEncoder().encodeToString(msg));
                     byte[] output = decryptMessage(msg);
                     String actualMsg = new String(output, StandardCharsets.UTF_8);
                     System.out.println("Receiver: " + actualMsg);
@@ -107,8 +111,8 @@ public class Sender extends JFrame implements ActionListener, KeyListener {
 
 
     public void DHKeyGen() throws NoSuchAlgorithmException, InvalidKeyException, IOException, ClassNotFoundException, InvalidKeySpecException {
-        System.out.println("sender generating Diffie-Hellman keypair...\n");
-        event.append("\nsender generating Diffie-Hellman keypair...\n");
+        System.out.println("\nSender generating Diffie-Hellman keypair...\n");
+        event.append("\nSender generating Diffie-Hellman keypair...\n");
         KeyPairGenerator senderKpairGen = KeyPairGenerator.getInstance("DH");
         senderKpairGen.initialize(2048);
         KeyPair senderKpair = senderKpairGen.generateKeyPair();
@@ -117,24 +121,21 @@ public class Sender extends JFrame implements ActionListener, KeyListener {
         senderKeyAgree.init(senderKpair.getPrivate());
 
         senderPubKeyEnc = senderKpair.getPublic().getEncoded();
-        System.out.println("public key to send: ");
-        event.append("\npublic key to send: ");
+        System.out.println("Attempting to send Sender's public key to Receiver... \n");
+        event.append("\nAttempting to send Sender's public key to Receiver... \n");
         for(int i = 0; i < senderPubKeyEnc.length; i++){
             System.out.print(senderPubKeyEnc[i]);
             event.append(""+senderPubKeyEnc[i]);
         }
-
-        System.out.println("\n\n\nAttempting to send public key...");
-        event.append("\n\nAttempting to send public key...");
         dos.writeObject(senderPubKeyEnc);
-        System.out.println("Public key successfully sent\n");
-        event.append("\nPublic key successfully sent\n");
+        System.out.print("\nSender's public key sent\n");
+        event.append("\nSender's public key sent\n");
 
-        System.out.println("Waiting for key from receiver...");
-        event.append("\nWaiting for key from receiver...");
+        System.out.println("Waiting for key from receiver...\n");
+        event.append("\nWaiting for key from receiver...\n");
         receiverPubKeyEnc = (byte[]) dis.readObject();
-        System.out.println("Receiver public key received");
-        event.append("\nReceiver public key received");
+        System.out.println("Receiver public key received: \n");
+        event.append("\nReceiver public key received: \n");
         for(int i = 0; i < receiverPubKeyEnc.length; i++){
             System.out.print(receiverPubKeyEnc[i]);
             event.append(""+receiverPubKeyEnc[i]);
@@ -150,16 +151,23 @@ public class Sender extends JFrame implements ActionListener, KeyListener {
             int senderLen = senderSharedSecret.length;
             dos.writeObject(senderLen);
 
-            System.out.println("\n\nsender's length: " + senderLen);
-            event.append("\n\n\nsender's length: " + senderLen);
+            System.out.println("\n\nSender's public key length: \n" + senderLen);
+            event.append("\n\nSender's public key length: \n" + senderLen);
         }catch(Exception e){
             System.out.println(e.getMessage());
         }
 
-        System.out.println("\n\nSender's secret: " + toHexString(senderSharedSecret));
-        event.append("\n\n\nSender's secret: " + toHexString(senderSharedSecret));
+        System.out.println("\n\nSender's secret(Hex): \n" + toHexString(senderSharedSecret));
+        event.append("\n\nSender's secret(Hex): \n" + toHexString(senderSharedSecret));
+        System.out.println("\n\nSender's secret(Base64): \n" + Base64.getEncoder().encodeToString(senderSharedSecret));
+        event.append("\n\nSender's secret(Base64): \n" + Base64.getEncoder().encodeToString(senderSharedSecret));
         generateAESKey();
-        String AESText = "Generated key: " + Base64.getEncoder().encodeToString(senderKey.getEncoded());
+        System.out.println("\n\nGenerated key(Hex): \n" + toHexString(senderKey.getEncoded()));
+        event.append("\n\nGenerated key(Hex): \n" + toHexString(senderKey.getEncoded()));
+        System.out.println("\n\nGenerated key(Base64): \n" + Base64.getEncoder().encodeToString(senderKey.getEncoded()));
+        event.append("\n\nGenerated key(Base64): \n" + Base64.getEncoder().encodeToString(senderKey.getEncoded()));
+
+
     }
 
     private static String toHexString(byte[] block) {
@@ -193,6 +201,8 @@ public class Sender extends JFrame implements ActionListener, KeyListener {
         //attempt to send the message
         if(!chatFinished) {
             byte[] encrypted = encryptMessage(message);
+            event.append("\n\nEncrypted message to send to Receiver(Hex): \n" + toHexString(encrypted));
+            event.append("\n\nEncrypted message to send to Receiver(Base64): \n" + Base64.getEncoder().encodeToString(encrypted));
             dos.writeObject(encrypted);
         }
     }
