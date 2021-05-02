@@ -15,22 +15,17 @@ import java.nio.charset.StandardCharsets;
 import java.security.*;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.X509EncodedKeySpec;
-import java.sql.SQLOutput;
 import java.util.Base64;
 import java.util.Scanner;
 
 
 public class Sender extends JFrame implements ActionListener, KeyListener {
     public Socket sendingSock;
-    public Socket receivingSock;
-    public static final int port = 9045; //idk what the port should be
-    public boolean chatFinished = false; //TODO: have gui signal when chat is finished
+    public static final int port = 9045;
+    public boolean chatFinished = false;
     public ObjectInputStream dis = null;
     public ObjectOutputStream dos = null;
-    public boolean keySent = false;
-    public boolean eventsLog = false;
     private byte[] msg;
-    private Message send;
     private byte[] senderPubKeyEnc = null;
     private byte[] receiverPubKeyEnc = null;
     private byte[] senderSharedSecret = null;
@@ -42,12 +37,12 @@ public class Sender extends JFrame implements ActionListener, KeyListener {
     private JButton EventLogButton;
 
     public static void main(String[] args) throws IOException, NoSuchAlgorithmException, InvalidKeyException, ClassNotFoundException, InvalidKeySpecException {
-        Sender s = null;
+        Sender s;
         s = new Sender();
         s.setupSocket();
     }
 
-
+    //method to set up sender socket
     public void setupSocket() throws IOException, InvalidKeyException, NoSuchAlgorithmException, ClassNotFoundException, InvalidKeySpecException {
         InetAddress ip = InetAddress.getLocalHost();
         sendingSock = new Socket(ip, port);
@@ -59,11 +54,11 @@ public class Sender extends JFrame implements ActionListener, KeyListener {
 
         DHKeyGen();
 
-
         new receiverSend().start();
         new receiverListener().start();
     }
 
+    //class handling listening for messages from receiver
     class receiverListener extends Thread{
         public void run(){
             while(true){
@@ -83,6 +78,7 @@ public class Sender extends JFrame implements ActionListener, KeyListener {
         }
     }
 
+    //class to handle sending messages to the receiver
     class receiverSend extends Thread{
         public void run(){
             while(true){
@@ -109,7 +105,7 @@ public class Sender extends JFrame implements ActionListener, KeyListener {
         }
     }
 
-
+    //method to generate Diffie-Hellman key
     public void DHKeyGen() throws NoSuchAlgorithmException, InvalidKeyException, IOException, ClassNotFoundException, InvalidKeySpecException {
         System.out.println("\nSender generating Diffie-Hellman keypair...\n");
         event.append("\nSender generating Diffie-Hellman keypair...\n");
@@ -166,8 +162,6 @@ public class Sender extends JFrame implements ActionListener, KeyListener {
         event.append("\n\nGenerated key(Hex): \n" + toHexString(senderKey.getEncoded()));
         System.out.println("\n\nGenerated key(Base64): \n" + Base64.getEncoder().encodeToString(senderKey.getEncoded()));
         event.append("\n\nGenerated key(Base64): \n" + Base64.getEncoder().encodeToString(senderKey.getEncoded()));
-
-
     }
 
     private static String toHexString(byte[] block) {
@@ -187,15 +181,6 @@ public class Sender extends JFrame implements ActionListener, KeyListener {
         return buffer.toString();
     }
 
-    //method to run chat
-    public void recieve() throws IOException, ClassNotFoundException, IllegalBlockSizeException, BadPaddingException, NoSuchAlgorithmException, NoSuchPaddingException {
-        while(!chatFinished) {
-            //constantly listen for messages
-            byte[] message  = (byte[]) dis.readObject();
-            //String decrypted = decryptMessage(message, key);
-        }
-    }
-
     //call only when attempting to send message, like when you hit enter or send or whatever
     public void sendMessage(String message) throws IOException, IllegalBlockSizeException, BadPaddingException, NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException {
         //attempt to send the message
@@ -213,18 +198,8 @@ public class Sender extends JFrame implements ActionListener, KeyListener {
         sendingSock.close();
     }
 
+    //method to encrypt message to be sent
     public byte[] encryptMessage(String message) throws NoSuchPaddingException, NoSuchAlgorithmException, BadPaddingException, IllegalBlockSizeException, InvalidKeyException, IOException {
-
-       /* byte[] encryptedMessage = null;
-        IvParameterSpec iv = new IvParameterSpec(message.getBytes()); //check this
-        //TODO:pass in key here
-        //cipherText.init(Cipher.ENCRYPT_MODE, key, iv);
-        encryptedMessage = cipherText.doFinal(message.getBytes());
-        if(eventsLog) {
-            String encryptedText = "Encrypted text: " + Base64.getEncoder().encodeToString(encryptedMessage);
-        }
-        */
-        //return encryptedMessage;
         Cipher cipher = Cipher.getInstance("AES/CBC/PKCS5PADDING"); //for AES encryption
         cipher.init(Cipher.ENCRYPT_MODE, senderKey);
         byte[] cipherText = cipher.doFinal(message.getBytes());
@@ -233,41 +208,16 @@ public class Sender extends JFrame implements ActionListener, KeyListener {
         return cipherText;
     }
 
+    //method to decrypt received message
     public byte[] decryptMessage(byte[] message) throws NoSuchPaddingException, NoSuchAlgorithmException, BadPaddingException, IllegalBlockSizeException, IOException, ClassNotFoundException, InvalidAlgorithmParameterException, InvalidKeyException {
-
         Cipher decipherText = Cipher.getInstance("AES/CBC/PKCS5PADDING");
         decipherText.init(Cipher.DECRYPT_MODE, senderKey, aesParameters);
         byte[] decryptedMessage = decipherText.doFinal(message);
-        //IvParameterSpec iv = new IvParameterSpec(message); //check this
-        //TODO:pass in key here
-        //decipherText.init(Cipher.DECRYPT_MODE, key, iv);
-        //decryptedMessage = decipherText.doFinal(message);
         return decryptedMessage;
     }
 
-    /*
-    public String decryptMessage(byte[] message, SecretKey key) throws NoSuchPaddingException, NoSuchAlgorithmException, BadPaddingException, IllegalBlockSizeException {
-        Cipher decipherText = Cipher.getInstance("AES/CBC/PKCS5PADDING");
-        String decryptedMessage = null;
-        IvParameterSpec iv = new IvParameterSpec(message); //check this
-        //decipherText.init(Cipher.DECRYPT_MODE, key, iv);
-        //decryptedMessage = decipherText.doFinal(message);
-        return decryptedMessage;
-    }
-     */
-
+    //method to generate sender's AES key
     public void generateAESKey() throws NoSuchAlgorithmException {
-        /*
-        SecretKey AES;
-        KeyGenerator generator = KeyGenerator.getInstance("AES");
-        generator.init(128);
-        AES = generator.generateKey();
-        if(eventsLog) {
-            String AESText = "Generated key: " + Base64.getEncoder().encodeToString(AES.getEncoded()); //getting string version of key
-        }
-        return AES;
-
-         */
         senderKey = new SecretKeySpec(senderSharedSecret, 0, 16, "AES");
     }
 
@@ -277,8 +227,7 @@ public class Sender extends JFrame implements ActionListener, KeyListener {
         aesParameters.init(encodedParameters);
     }
 
-
-
+    //Sender GUI
     Sender()
     {
         JPanel center = new JPanel(new GridLayout(2,1));
